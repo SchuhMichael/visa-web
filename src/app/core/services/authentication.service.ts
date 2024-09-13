@@ -114,5 +114,4 @@ export class AuthenticationService {
         const isTokenExpired = this._oauthService.getAccessTokenExpiration() <= new Date().getTime();
         return this._oauthService.getAccessToken() != null && !isTokenExpired;
     }
-
 }

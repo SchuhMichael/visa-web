@@ -1,6 +1,6 @@
 import {HttpClient, HttpParams} from '@angular/common/http';
 import {Injectable} from '@angular/core';
-import {SocketIOTunnel} from '@illgrenoble/visa-guacamole-common-js';
+import Guacamole from 'guacamole-common-js';
 import {environment} from 'environments/environment';
 import {Observable} from 'rxjs';
 import {map} from 'rxjs/operators';
@@ -15,10 +15,10 @@ import {
     Quota,
     User
 } from '../models';
-import {InstancesFilterState, toParams} from './filter/instances-filter-state.model';
 import {ObjectMapperService} from './object-mapper.service';
-import {WebXSocketIOTunnel} from '@illgrenoble/webx-client';
+import {WebXWebSocketTunnel} from '@illgrenoble/webx-client';
 import {Response} from "./visa-response";
+import {InstancesFilterState, toParams} from "./models/instances-filter-state.model";
 
 @Injectable()
 export class AccountService {
@@ -339,28 +339,25 @@ export class AccountService {
         );
     }
 
-    public createGuacamoleRemoteDesktopTunnel(): SocketIOTunnel {
-        const path = environment.paths.vdi;
-        const connectionOptions = {
-            'force new connection': true,
-            forceNew: true,
-            path,
-            reconnection: false,
-            transports: ['websocket'],
-        };
-        return new SocketIOTunnel(window.location.origin, connectionOptions, 'display');
+    public createClientAuthenticationToken(clientId: string): Observable<string> {
+        const baseUrl = environment.paths.api;
+        const url = `${baseUrl}/account/clients/${clientId}/auth/token`;
+        return this.http.post<Response<{token: string}>>(url, null).pipe(
+            map((response) => {
+                const data = response.data;
+                return data.token;
+            })
+        );
     }
 
-    public createWebXRemoteDesktopTunnel(): WebXSocketIOTunnel {
-        const path = environment.paths.vdi;
-        const connectionOptions = {
-            'force new connection': true,
-            forceNew: true,
-            path,
-            reconnection: false,
-            transports: ['websocket'],
-        };
-        return new WebXSocketIOTunnel(window.location.origin, connectionOptions, 'webxdisplay');
+    public createGuacamoleRemoteDesktopTunnel(token: string, clientId: string): Guacamole.WebSocketTunnel {
+        const path = `${environment.paths.vdi}/${token}/${clientId}/guacamole`;
+        return new Guacamole.WebSocketTunnel(path);
+    }
+
+    public createWebXRemoteDesktopTunnel(token: string, clientId: string): WebXWebSocketTunnel {
+        const path = `${environment.paths.vdi}/${token}/${clientId}/webx`;
+        return new WebXWebSocketTunnel(path);
     }
 
     public getQuotas(): Observable<Quota> {
@@ -378,9 +375,23 @@ export class AccountService {
         return this.http.get<Response<number>>(url).pipe(map((response) => response.data));
     }
 
+    public createThumbnailForInstance(instance: Instance, thumbnail: Blob): Observable<boolean> {
+        const baseUrl = environment.paths.api;
+        const formData = new FormData();
+        formData.append('file', thumbnail);
+        const url = `${baseUrl}/account/instances/${instance.id}/thumbnail`;
+        return this.http.post<FormData>(url, formData)
+            .pipe(map((res) => true));
+    }
+
     public getThumbnailUrlForInstance(instance: Instance): string {
         const baseUrl = environment.paths.api;
         return `${baseUrl}/account/instances/${instance.uid}/thumbnail`;
+    }
+
+    public getThumbnailUrlForInstanceUid(uid: string): string {
+        const baseUrl = environment.paths.api;
+        return `${baseUrl}/account/instances/${uid}/thumbnail`;
     }
 
     public getInstanceLifetimeExtension(instance: Instance): Observable<InstanceExtensionRequest> {
